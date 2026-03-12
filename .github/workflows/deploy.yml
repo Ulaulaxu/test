@@ -65,7 +65,7 @@ jobs:
             
         - name: Login to Cloud Foundry environment
           run: |
-            cf auth --assertion ${{steps.get-github-jwt.outputs.githubJwt}} --origin ${{inputs.userOrigin}}
+            cf -v auth --assertion ${{steps.get-github-jwt.outputs.githubJwt}} --origin ${{inputs.userOrigin}}
 
         - name: Target Cloud Foundry org and space
           run: |

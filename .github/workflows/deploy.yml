@@ -112,75 +112,75 @@ jobs:
       - name: チェックアウト
         uses: actions/checkout@v4
 
-      - name: Javaのセットアップ
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
+      # - name: Javaのセットアップ
+      #   uses: actions/setup-java@v4
+      #   with:
+      #     distribution: temurin
+      #     java-version: '21'
+      #     cache: maven
 
-      # ビルド前にリポジトリアクセスを確認（診断ステップ）
-      - name: Mavenリポジトリアクセスの確認
-        run: |
-          echo "Maven Centralアクセスのテスト..."
-          curl -I -m 10 https://maven.aliyun.com/repository/central/ || true
-          echo "SAP Maven Repositoryアクセスのテスト..."
-          curl -I -m 10 https://maven.sap.com/repository/public/ || true
+      # # ビルド前にリポジトリアクセスを確認（診断ステップ）
+      # - name: Mavenリポジトリアクセスの確認
+      #   run: |
+      #     echo "Maven Centralアクセスのテスト..."
+      #     curl -I -m 10 https://maven.aliyun.com/repository/central/ || true
+      #     echo "SAP Maven Repositoryアクセスのテスト..."
+      #     curl -I -m 10 https://maven.sap.com/repository/public/ || true
 
-      - name: Mavenリポジトリのキャッシュ
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/settings.xml', 'lib/*.jar') }}
-          restore-keys: |
-            maven-${{ runner.os }}-
+      # - name: Mavenリポジトリのキャッシュ
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ~/.m2/repository
+      #     key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/settings.xml', 'lib/*.jar') }}
+      #     restore-keys: |
+      #       maven-${{ runner.os }}-
 
-      # mvn clean前に共通モジュールをローカルMavenリポジトリにインストール
-      # 注意: -s .mvn/settings.xmlフラグで親POM解決時にAliyunミラーが使用される
-      - name: 共通モジュールをローカルMavenリポジトリにインストール
-        run: |
-          # lib/ の JAR はキャッシュなしで毎回インストール
-          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-core-1.0.0.jar -DgroupId=com.common -DartifactId=common-core -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
-          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-report-1.0.0.jar -DgroupId=com.common -DartifactId=common-report -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
-          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-logging-1.0.0.jar -DgroupId=com.common -DartifactId=common-logging -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
-          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-file-1.0.0.jar -DgroupId=com.common -DartifactId=common-file -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
-          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-db-1.0.0.jar -DgroupId=com.common -DartifactId=common-db -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
-          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-auth-1.0.0.jar -DgroupId=com.common -DartifactId=common-auth -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
-          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-mail-1.0.0.jar -DgroupId=com.common -DartifactId=common-mail -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+      # # mvn clean前に共通モジュールをローカルMavenリポジトリにインストール
+      # # 注意: -s .mvn/settings.xmlフラグで親POM解決時にAliyunミラーが使用される
+      # - name: 共通モジュールをローカルMavenリポジトリにインストール
+      #   run: |
+      #     # lib/ の JAR はキャッシュなしで毎回インストール
+      #     mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-core-1.0.0.jar -DgroupId=com.common -DartifactId=common-core -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+      #     mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-report-1.0.0.jar -DgroupId=com.common -DartifactId=common-report -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+      #     mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-logging-1.0.0.jar -DgroupId=com.common -DartifactId=common-logging -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+      #     mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-file-1.0.0.jar -DgroupId=com.common -DartifactId=common-file -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+      #     mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-db-1.0.0.jar -DgroupId=com.common -DartifactId=common-db -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+      #     mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-auth-1.0.0.jar -DgroupId=com.common -DartifactId=common-auth -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+      #     mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-mail-1.0.0.jar -DgroupId=com.common -DartifactId=common-mail -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
 
-      - name: Mavenでビルド（リトライ付き）
-        run: |
-          SKIP_TESTS=${SKIP_TESTS:-true}
-          chmod +x mvnw || true
+      # - name: Mavenでビルド（リトライ付き）
+      #   run: |
+      #     SKIP_TESTS=${SKIP_TESTS:-true}
+      #     chmod +x mvnw || true
           
-          # 依存解決を事前実行
-          mvn dependency:resolve
+      #     # 依存解決を事前実行
+      #     mvn dependency:resolve
           
-          # リトライロジック: 指数バックオフで最大2回ビルドを試行
-          for attempt in 1 2; do
-            echo "=== ビルド試行 $attempt/2 ==="
-            if [ -x ./mvnw ]; then
-              echo "Maven Wrapperを使用 (./mvnw)"
-              ./mvnw -s .mvn/settings.xml package -DskipTests=$SKIP_TESTS -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=5 && exit 0
-            else
-              echo "Maven Wrapperが見つからない — システムmvnにフォールバック"
-              if ! command -v mvn >/dev/null 2>&1; then
-                echo "ランナーにmvnが見つからない — aptでmavenをインストール"
-                sudo apt-get update
-                sudo apt-get install -y maven
-              fi
-              mvn -s .mvn/settings.xml package -DskipTests=$SKIP_TESTS -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=5 && exit 0
-            fi
+      #     # リトライロジック: 指数バックオフで最大2回ビルドを試行
+      #     for attempt in 1 2; do
+      #       echo "=== ビルド試行 $attempt/2 ==="
+      #       if [ -x ./mvnw ]; then
+      #         echo "Maven Wrapperを使用 (./mvnw)"
+      #         ./mvnw -s .mvn/settings.xml package -DskipTests=$SKIP_TESTS -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=5 && exit 0
+      #       else
+      #         echo "Maven Wrapperが見つからない — システムmvnにフォールバック"
+      #         if ! command -v mvn >/dev/null 2>&1; then
+      #           echo "ランナーにmvnが見つからない — aptでmavenをインストール"
+      #           sudo apt-get update
+      #           sudo apt-get install -y maven
+      #         fi
+      #         mvn -s .mvn/settings.xml package -DskipTests=$SKIP_TESTS -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=5 && exit 0
+      #       fi
             
-            if [ $attempt -lt 2 ]; then
-              wait_time=$((2 ** attempt))
-              echo "ビルド試行 $attempt が失敗しました。${wait_time}秒後にリトライ..."
-              sleep $wait_time
-            fi
-          done
+      #       if [ $attempt -lt 2 ]; then
+      #         wait_time=$((2 ** attempt))
+      #         echo "ビルド試行 $attempt が失敗しました。${wait_time}秒後にリトライ..."
+      #         sleep $wait_time
+      #       fi
+      #     done
           
-          echo "2回の試行後にビルドが失敗しました"
-          exit 1
+      #     echo "2回の試行後にビルドが失敗しました"
+      #     exit 1
 
       - name: Cloud Foundry CLIのインストール
         run: |

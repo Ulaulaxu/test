@@ -1,81 +1,390 @@
-name: Deploy
+# name: Deploy
+
+# on:
+#     workflow_dispatch:
+#       inputs:
+#         cfApiEndpointUrl:
+#           description: 'Cloud Foundry environment API endpoint'
+#           default: 'https://api.cf.ap10.hana.ondemand.com'
+#           required: true
+#           type: string
+#         cfOrg:
+#           description: 'CF org name'
+#           default: 'Product Support - SAP CP Sandbox_ula-cf-csxoz6mp'
+#           required: true
+#         cfSpace:
+#           description: 'CF space name'
+#           default: 'dev'
+#           required: true
+#         userOrigin:
+#           description: 'The "origin-identifier" of your custom platform IdP (see origin of the space user)'
+#           default: 'support-platform'
+#           required: true
+#           type: string
+#         tenantIssuerUri:
+#           description: 'Issuer URI of your SAP Cloud Identity Services tenant'
+#           default: 'https://support.accounts.ondemand.com/'
+#           required: true
+  
+# jobs:
+#     deploy:
+#       runs-on: [ ubuntu-latest ]
+#       permissions:
+#         id-token: write # This is required for requesting the JWT
+#         contents: read  # This is required for actions/checkout
+#       steps:
+#         - name: Show provided parameters
+#           run: |
+#             echo "Provided parameters:"
+#             echo '${{ toJson(inputs) }}' | jq -r 'to_entries | .[] | "- \(.key): \(.value)"'
+
+#         - name: Check out repository code
+#           uses: actions/checkout@v4
+
+#         - name: Request OIDC Token
+#           run: |
+#             curl -sLS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL"
+  
+#         - name: Download CF CLI
+#           run: |
+#             cf_version="8.12.0"
+#             mkdir .cfcli
+#             curl -L "https://github.com/cloudfoundry/cli/releases/download/v${cf_version}/cf8-cli_${cf_version}_linux_x86-64.tgz" | tar -zvx -C .cfcli
+#             echo "$(pwd)/.cfcli" >> "$GITHUB_PATH"
+
+#         - name: Get short-lived GitHub-issued JWT
+#           id: get-github-jwt
+#           run: |
+#             githubJwt=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" -H "Accept: application/json; api-version=2.0" -H "Content-Type: application/json" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{inputs.tenantIssuerUri}}" | jq -r '.value')
+#             echo $githubJwt | jq -R 'split(".") | .[0],.[1] | @base64d | fromjson'
+#             echo "githubJwt=$githubJwt" >> $GITHUB_OUTPUT
+
+#         - name: Set Cloud Foundry API
+#           run: |
+#             cf api ${{inputs.cfApiEndpointUrl}}
+            
+#         - name: Login to Cloud Foundry environment
+#           run: |
+#             cf -v auth --assertion ${{steps.get-github-jwt.outputs.githubJwt}} --origin ${{inputs.userOrigin}}
+
+#         - name: Target Cloud Foundry org and space
+#           run: |
+#             cf target -o '${{inputs.cfOrg}}' -s '${{inputs.cfSpace}}'
+  
+#         - name: Deploy to Cloud Foundry environment
+#           run: |          
+#             cf push --strategy rolling
+  
+#         - name: Logout from Cloud Foundry environment
+#           if: always()
+#           run: |
+#             cf logout
+
+
+
+---
+name: Build and Deploy to SAP BTP
 
 on:
-    workflow_dispatch:
-      inputs:
-        cfApiEndpointUrl:
-          description: 'Cloud Foundry environment API endpoint'
-          default: 'https://api.cf.ap10.hana.ondemand.com'
-          required: true
-          type: string
-        cfOrg:
-          description: 'CF org name'
-          default: 'Product Support - SAP CP Sandbox_ula-cf-csxoz6mp'
-          required: true
-        cfSpace:
-          description: 'CF space name'
-          default: 'dev'
-          required: true
-        userOrigin:
-          description: 'The "origin-identifier" of your custom platform IdP (see origin of the space user)'
-          default: 'support-platform'
-          required: true
-          type: string
-        tenantIssuerUri:
-          description: 'Issuer URI of your SAP Cloud Identity Services tenant'
-          default: 'https://support.accounts.ondemand.com/'
-          required: true
-  
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
-    deploy:
-      runs-on: [ ubuntu-latest ]
-      permissions:
-        id-token: write # This is required for requesting the JWT
-        contents: read  # This is required for actions/checkout
-      steps:
-        - name: Show provided parameters
-          run: |
-            echo "Provided parameters:"
-            echo '${{ toJson(inputs) }}' | jq -r 'to_entries | .[] | "- \(.key): \(.value)"'
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    # push時にも必ず動くよう、needs依存を外す
+    if: ${{ always() }}
+    env:
+      BTP_API: 'https://api.cf.ap10.hana.ondemand.com'
+      BTP_ORG: 'Product Support - SAP CP Sandbox_ula-cf-csxoz6mp'
+      BTP_SPACE: 'dev'
+      BTP_APP_NAME: ${{ secrets.BTP_APP_NAME }}
+      # JWT認証用: SAP Cloud Identity Services テナント Issuer URI
+      BTP_TENANT_ISSUER_URI: "https://support.accounts.ondemand.com"
+      # JWT認証用: カスタムプラットフォーム IdP の origin 識別子
+      BTP_USER_ORIGIN: "support-platform"
+    steps:
+      - name: チェックアウト
+        uses: actions/checkout@v4
 
-        - name: Check out repository code
-          uses: actions/checkout@v4
+      - name: Javaのセットアップ
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
 
-        - name: Request OIDC Token
-          run: |
-            curl -sLS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL"
-  
-        - name: Download CF CLI
-          run: |
-            cf_version="8.12.0"
-            mkdir .cfcli
-            curl -L "https://github.com/cloudfoundry/cli/releases/download/v${cf_version}/cf8-cli_${cf_version}_linux_x86-64.tgz" | tar -zvx -C .cfcli
-            echo "$(pwd)/.cfcli" >> "$GITHUB_PATH"
+      # ビルド前にリポジトリアクセスを確認（診断ステップ）
+      - name: Mavenリポジトリアクセスの確認
+        run: |
+          echo "Maven Centralアクセスのテスト..."
+          curl -I -m 10 https://maven.aliyun.com/repository/central/ || true
+          echo "SAP Maven Repositoryアクセスのテスト..."
+          curl -I -m 10 https://maven.sap.com/repository/public/ || true
 
-        - name: Get short-lived GitHub-issued JWT
-          id: get-github-jwt
-          run: |
-            githubJwt=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" -H "Accept: application/json; api-version=2.0" -H "Content-Type: application/json" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${{inputs.tenantIssuerUri}}" | jq -r '.value')
-            echo $githubJwt | jq -R 'split(".") | .[0],.[1] | @base64d | fromjson'
-            echo "githubJwt=$githubJwt" >> $GITHUB_OUTPUT
+      - name: Mavenリポジトリのキャッシュ
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/settings.xml', 'lib/*.jar') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
 
-        - name: Set Cloud Foundry API
-          run: |
-            cf api ${{inputs.cfApiEndpointUrl}}
+      # mvn clean前に共通モジュールをローカルMavenリポジトリにインストール
+      # 注意: -s .mvn/settings.xmlフラグで親POM解決時にAliyunミラーが使用される
+      - name: 共通モジュールをローカルMavenリポジトリにインストール
+        run: |
+          # lib/ の JAR はキャッシュなしで毎回インストール
+          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-core-1.0.0.jar -DgroupId=com.common -DartifactId=common-core -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-report-1.0.0.jar -DgroupId=com.common -DartifactId=common-report -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-logging-1.0.0.jar -DgroupId=com.common -DartifactId=common-logging -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-file-1.0.0.jar -DgroupId=com.common -DartifactId=common-file -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-db-1.0.0.jar -DgroupId=com.common -DartifactId=common-db -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-auth-1.0.0.jar -DgroupId=com.common -DartifactId=common-auth -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+          mvn -s .mvn/settings.xml install:install-file -Dfile=lib/common-mail-1.0.0.jar -DgroupId=com.common -DartifactId=common-mail -Dversion=1.0.0 -Dpackaging=jar -DgeneratePom=true
+
+      - name: Mavenでビルド（リトライ付き）
+        run: |
+          SKIP_TESTS=${SKIP_TESTS:-true}
+          chmod +x mvnw || true
+          
+          # 依存解決を事前実行
+          mvn dependency:resolve
+          
+          # リトライロジック: 指数バックオフで最大2回ビルドを試行
+          for attempt in 1 2; do
+            echo "=== ビルド試行 $attempt/2 ==="
+            if [ -x ./mvnw ]; then
+              echo "Maven Wrapperを使用 (./mvnw)"
+              ./mvnw -s .mvn/settings.xml package -DskipTests=$SKIP_TESTS -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=5 && exit 0
+            else
+              echo "Maven Wrapperが見つからない — システムmvnにフォールバック"
+              if ! command -v mvn >/dev/null 2>&1; then
+                echo "ランナーにmvnが見つからない — aptでmavenをインストール"
+                sudo apt-get update
+                sudo apt-get install -y maven
+              fi
+              mvn -s .mvn/settings.xml package -DskipTests=$SKIP_TESTS -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=5 && exit 0
+            fi
             
-        - name: Login to Cloud Foundry environment
-          run: |
-            cf -v auth --assertion ${{steps.get-github-jwt.outputs.githubJwt}} --origin ${{inputs.userOrigin}}
+            if [ $attempt -lt 2 ]; then
+              wait_time=$((2 ** attempt))
+              echo "ビルド試行 $attempt が失敗しました。${wait_time}秒後にリトライ..."
+              sleep $wait_time
+            fi
+          done
+          
+          echo "2回の試行後にビルドが失敗しました"
+          exit 1
 
-        - name: Target Cloud Foundry org and space
-          run: |
-            cf target -o '${{inputs.cfOrg}}' -s '${{inputs.cfSpace}}'
-  
-        - name: Deploy to Cloud Foundry environment
-          run: |          
-            cf push --strategy rolling
-  
-        - name: Logout from Cloud Foundry environment
-          if: always()
-          run: |
-            cf logout
+      - name: Cloud Foundry CLIのインストール
+        run: |
+          set -e
+          CF_CLI_VERSION="8.17.1"
+          echo "Cloud Foundry CLI v${CF_CLI_VERSION} をダウンロード..."
+          curl -fL "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=${CF_CLI_VERSION}&source=github-rel" -o cf-cli.tgz
+          mkdir -p cf-cli
+          tar -xzf cf-cli.tgz -C cf-cli
+          if [ -f cf-cli/cf8 ]; then
+            BIN=cf-cli/cf8
+          elif [ -f cf-cli/cf ]; then
+            BIN=cf-cli/cf
+          else
+            echo "アーカイブにcfバイナリが見つかりません:" && ls -la cf-cli
+            exit 1
+          fi
+          chmod +x "$BIN"
+          CF_BIN_PATH="$(pwd)/$BIN"
+          echo "CF_BIN=$CF_BIN_PATH" >> $GITHUB_ENV
+          rm -f cf-cli.tgz
+          "$CF_BIN_PATH" --version
+
+      # GitHub OIDC プロバイダから短期JWT を取得
+      # 参考: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect
+      - name: GitHub発行のJWTを取得
+        id: get-github-jwt
+        run: |
+          set -e
+          echo "GitHub OIDC プロバイダからJWTを取得（audience: ${BTP_TENANT_ISSUER_URI}）..."
+          GITHUB_JWT=$(curl -s \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            -H "Accept: application/json; api-version=2.0" \
+            -H "Content-Type: application/json" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${BTP_TENANT_ISSUER_URI}" \
+            | jq -r '.value')
+          
+          if [ -z "$GITHUB_JWT" ] || [ "$GITHUB_JWT" = "null" ]; then
+            echo "::error::JWTの取得に失敗しました。BTP_TENANT_ISSUER_URI と OIDC 設定を確認してください。"
+            exit 1
+          fi
+          
+          # JWTヘッダーとペイロードの確認（デバッグ用、署名部分は出力しない）
+          echo "JWT取得成功。トークンのクレームを確認:"
+          echo "$GITHUB_JWT" | jq -R 'split(".") | .[0],.[1] | @base64d | fromjson'
+          
+          # 後続ステップで使用するためにOutputに設定
+          echo "githubJwt=$GITHUB_JWT" >> $GITHUB_OUTPUT
+
+      # --- 診断ステップ: JWT クレームと IAS 設定の整合性を確認 ---
+      - name: JWT・IAS・UAA 診断情報の収集
+        if: always()
+        run: |
+          set -e
+          GITHUB_JWT="${{ steps.get-github-jwt.outputs.githubJwt }}"
+
+          echo "============================================"
+          echo "=== 1. GitHub JWT の主要クレーム ==="
+          echo "============================================"
+          echo "$GITHUB_JWT" | jq -R 'split(".") | .[1] | @base64d | fromjson | {iss, sub, aud, repository, repository_owner, ref, actor}' || true
+
+          echo ""
+          echo "============================================"
+          echo "=== 2. IAS OpenID Configuration の確認 ==="
+          echo "============================================"
+          echo "テナント: ${BTP_TENANT_ISSUER_URI}"
+          curl -s "${BTP_TENANT_ISSUER_URI}/.well-known/openid-configuration" | jq '{issuer, token_endpoint, authorization_endpoint}' || echo "IAS OpenID Configuration の取得に失敗"
+
+          echo ""
+          echo "============================================"
+          echo "=== 3. CF UAA 情報の確認 ==="
+          echo "============================================"
+          CF_API_INFO=$(curl -s "${BTP_API}/v2/info" 2>/dev/null || curl -s "${BTP_API}" 2>/dev/null || true)
+          echo "$CF_API_INFO" | jq '.' || echo "$CF_API_INFO"
+          
+          # UAA エンドポイントから token_endpoint を取得
+          UAA_ENDPOINT=$(echo "$CF_API_INFO" | jq -r '.links.uaa.href // .authorization_endpoint // empty' 2>/dev/null || true)
+          if [ -n "$UAA_ENDPOINT" ]; then
+            echo ""
+            echo "UAA Endpoint: $UAA_ENDPOINT"
+            echo "UAA Token Keys:"
+            curl -s "${UAA_ENDPOINT}/token_keys" | jq '.' 2>/dev/null || true
+          fi
+
+          echo ""
+          echo "============================================"
+          echo "=== 4. 使用パラメータの確認 ==="
+          echo "============================================"
+          echo "BTP_TENANT_ISSUER_URI: ${BTP_TENANT_ISSUER_URI}"
+          echo "BTP_USER_ORIGIN:       ${BTP_USER_ORIGIN}"
+          echo "JWT audience (aud):    $(echo "$GITHUB_JWT" | jq -R 'split(".") | .[1] | @base64d | fromjson | .aud' 2>/dev/null || true)"
+          echo "JWT issuer (iss):      $(echo "$GITHUB_JWT" | jq -R 'split(".") | .[1] | @base64d | fromjson | .iss' 2>/dev/null || true)"
+          echo "JWT subject (sub):     $(echo "$GITHUB_JWT" | jq -R 'split(".") | .[1] | @base64d | fromjson | .sub' 2>/dev/null || true)"
+          echo "JWT repository:        $(echo "$GITHUB_JWT" | jq -R 'split(".") | .[1] | @base64d | fromjson | .repository' 2>/dev/null || true)"
+
+          echo ""
+          echo "============================================"
+          echo "=== 5. IAS に対する直接認証テスト ==="
+          echo "============================================"
+          # IAS の /oauth2/token に直接 assertion を送り、IAS 側のエラーメッセージを確認
+          echo "IAS /oauth2/token (client_credentials + assertion) テスト:"
+          IAS_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "${BTP_TENANT_ISSUER_URI}/oauth2/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
+            -d "assertion=${GITHUB_JWT}" 2>/dev/null || true)
+          echo "$IAS_RESPONSE"
+
+      # GitHub JWT を直接 cf auth --assertion に渡す
+      # CF UAA → SAP IAS (Custom Platform IdP) → GitHub (Corporate IdP) の信頼チェーンで認証
+      # 参考: https://community.sap.com/t5/technology-blogs-by-sap/authenticating-github-actions-workflows-deploying-to-the-sap-btp-cloud/ba-p/14118923
+      - name: SAP BTP CFにログイン（JWT認証）
+        run: |
+          set -e
+          echo "CF APIエンドポイントを設定 : $BTP_API"
+          "$CF_BIN" api "$BTP_API"
+          
+          echo "GitHub JWT + origin（${BTP_USER_ORIGIN}）でCFにログイン"
+          CF_TRACE=true "$CF_BIN" auth --assertion "${{ steps.get-github-jwt.outputs.githubJwt }}" --origin "${BTP_USER_ORIGIN}" 2>&1 || {
+            echo ""
+            echo "::error::CF認証に失敗しました。上の診断ステップの出力を確認してください。"
+            echo "--- よくある原因 ---"
+            echo "1. IAS に GitHub Corporate IdP が未登録（Discovery URL: https://token.actions.githubusercontent.com/.well-known/openid-configuration）"
+            echo "2. IAS の 'SAP Business Technology Platform' アプリに Conditional Authentication Rule が未設定"
+            echo "3. BTP_USER_ORIGIN (${BTP_USER_ORIGIN}) が BTP Cockpit の Trust Configuration の origin と不一致"
+            echo "4. IAS ヘルパーユーザーの Email が JWT の repository クレームと不一致"
+            echo "5. IAS Enriched Token Claims の NameID マッピングの Email ドメインとヘルパーユーザーのドメインが不一致"
+            exit 1
+          }
+          
+          "$CF_BIN" target -o "$BTP_ORG" -s "$BTP_SPACE"
+
+      - name: SAP BTPにデプロイ
+        run: |
+          set -e
+          
+          # ============================================================
+          # ステップ1: Spring Bootバックエンドアプリケーションを最初にデプロイ
+          # ============================================================
+          # App Routerが起動時に接続しようとする前にバックエンドが実行されていることを確保するため、バックエンドを先にデプロイ
+          echo "=== Spring Bootバックエンドをデプロイ ==="
+          "$CF_BIN" push -f backend-manifest.yml -p target/Btp-test-0.0.1-SNAPSHOT.jar || { echo "Spring Bootデプロイが失敗しました"; exit 1; }
+          
+          # App Routerをデプロイする前にバックエンドが完全に起動するのを待つ
+          echo "=== バックエンドの起動を待つ ==="
+          for i in {1..30}; do
+            STATUS=$("$CF_BIN" apps | grep "${BTP_APP_NAME}-backend" | awk '{print $2}') || true
+            if [ "$STATUS" = "started" ]; then
+              echo "バックエンドが起動しました。App Routerのデプロイに進みます。"
+              break
+            fi
+            echo "バックエンドを待っています... (試行 $i/30) ステータス: $STATUS"
+            sleep 2
+          done
+          
+          # ============================================================
+          # ステップ2: App Router (approuter) をXSUAAバインディング付きでデプロイ
+          # ============================================================
+          # バックエンドが実行された後にApp Routerをデプロイ
+          echo "=== App Routerをデプロイ ==="
+          cd approuter
+          "$CF_BIN" push -f manifest.yml || { echo "App Routerデプロイが失敗しました"; exit 1; }
+          cd ..
+          
+          # ============================================================
+          # ステップ3: デプロイの確認
+          # ============================================================
+          echo "=== App Router用のバックエンドルートを設定 ==="
+          # バックエンドアプリの内部ルートを取得
+          BACKEND_ROUTE="$("$CF_BIN" apps | grep "${BTP_APP_NAME}-backend" | awk '{print $6}')" || true
+          
+          if [ -z "$BACKEND_ROUTE" ]; then
+            # フォールバック: 期待される内部ルートを構築
+            BACKEND_ROUTE="http://${BTP_APP_NAME}-backend:8080"
+            echo "注意: バックエンド内部ルート = $BACKEND_ROUTE"
+          else
+            echo "バックエンドアプリURL: $BACKEND_ROUTE"
+          fi
+          
+          # 必要に応じてVCAP_SERVICESの宛先設定を更新
+          # 現時点では、バックエンドはサービス名（cf networking）で検出される
+          echo "=== デプロイ完了 ==="
+          echo "App Router: bat-project-test2-approuter"
+          echo "バックエンド: ${BTP_APP_NAME}-backend"
+          echo ""
+          echo "アプリケーションにアクセス:"
+          echo "  https://bat-project-test2.cfapps.jp10.hana.ondemand.com/"
+      - name: アプリURLと宛先の確認
+        run: |
+          echo "=== アプリURLと宛先の確認 ==="
+          # cf appsを実行してアプリ情報を取得
+          "$CF_BIN" apps
+          # App RouterとバックエンドのURLを抽出
+          APP_ROUTER_URL=$("$CF_BIN" apps | grep "bat-project-test2-approuter" | awk '{print $6}')
+          BACKEND_URL=$("$CF_BIN" apps | grep "${BTP_APP_NAME}-backend" | awk '{print $6}')
+          echo "App Router URL: $APP_ROUTER_URL"
+          echo "バックエンドURL: $BACKEND_URL"
+          # 宛先一致のためにxs-app.jsonルートを確認
+          echo "xs-app.jsonルートを確認:"
+          cat approuter/xs-app.json
+          # 注意: 宛先一致の手動確認が必要
+
+      - name: CFからログアウト
+        if: always()
+        run: |
+          "$CF_BIN" logout || true
+
